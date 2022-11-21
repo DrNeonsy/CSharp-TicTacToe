@@ -1,19 +1,110 @@
-﻿using System.Drawing.Printing;
-
-namespace TicTacToe
+﻿namespace TicTacToe
 {
     internal class Game
     {
         #region Fields And Properties
         static Players[] Players { get; set; } = new Players[2];
         static char[,] Field { get; set; } = new char[3, 3];
+        static char[] Pos { get; set; } = { '1', '2', '3' };
         #endregion
 
         #region Methods
-        internal static void Play(char mode)
+        internal static void Start(char mode)
         {
             SetPlayers();
+            SetField();
+            Play(mode);
+        }
+        static void Play(char mode)
+        {
+            bool gameOngoing = true;
+            int winner = -1;
+            do
+            {
+                #region I/O And Check
+                for (int i = 1; i <= 2; i++)
+                {
+                    Console.Clear();
+                    #region Output
+                    switch (i)
+                    {
+                        case 1:
+                            Console.WriteLine(Banner.P1);
+                            break;
+                        case 2:
+                            Console.WriteLine(Banner.P2);
+                            break;
+                    }
+                    GetField();
+                    #endregion
 
+                    #region Input
+                    int y = -1, x = -1;
+                    for (int t = 0; t < 2; t++)
+                    {
+                        switch (t)
+                        {
+                            case 0:
+                                Console.Write("\n{0,36}", "Select Column");
+                                y = Input() - 1;
+                                break;
+                            case 1:
+                                ClearLine();
+                                Console.WriteLine("{0,35}", "Select Row");
+                                x = Input() - 1;
+                                break;
+                        }
+                    }
+                    #endregion
+
+                    #region SetSymbole
+                    if (Field[y, x] == ' ')
+                    {
+                        switch (i)
+                        {
+                            case 1:
+                                Field[y, x] = Players[0].Symbole;
+                                break;
+                            case 2:
+                                Field[y, x] = Players[1].Symbole;
+                                break;
+                        }
+                    }
+                    else
+                    {
+                        App.Error(1800);
+                        i--;
+                    }
+                    #endregion
+
+                    #region Check Board
+                    if (CheckTie())
+                    {
+                        gameOngoing = !CheckTie();
+                        winner = 3;
+                        break;
+                    }
+                    else if (CheckWinner())
+                    {
+                        gameOngoing = !CheckWinner();
+                        if (i == 1)
+                        {
+                            winner = 1;
+                            break;
+                        }
+                        else if (i == 2)
+                        {
+                            winner = 2;
+                            break;
+                        }
+                    }
+                    #endregion
+                }
+                #endregion
+
+            } while (gameOngoing);
+
+            GetWinner(winner);
         }
         static void SetPlayers()
         {
@@ -23,18 +114,18 @@ namespace TicTacToe
             }
             static string SetName(int player)
             {
-                Console.CursorVisible = true;
-
                 while (true)
                 {
                     Console.Clear();
+                    Console.CursorVisible = true;
+                    Console.WriteLine(Banner.Setup);
                     Console.Write($"Enter Player {player} Name: ");
 
                     string? input = Console.ReadLine();
 
                     if (!string.IsNullOrEmpty(input))
                     {
-                        if (input.Length >= 3 && input.Length <= 18)
+                        if (input.Length >= 3 && input.Length <= 18 && input.All(char.IsLetterOrDigit))
                         {
                             Console.CursorVisible = false;
                             Console.Clear();
@@ -47,8 +138,9 @@ namespace TicTacToe
                 static void InvalidInput()
                 {
                     Console.Clear();
+                    Console.CursorVisible = false;
                     Console.WriteLine(Banner.Invalid);
-                    Console.WriteLine("Make Sure That Your Input Is Between 3 And 18 Chars");
+                    Console.WriteLine("Length: Min 3 Max 18 | No Special Chars");
 
                     Thread.Sleep(2700);
                 }
@@ -56,33 +148,11 @@ namespace TicTacToe
         }
         static void SetField()
         {
-            Field[0, 0] = Players[0].Symbole;
             for (int y = 0; y < Field.GetLength(0); y++)
             {
                 for (int x = 0; x < Field.GetLength(1); x++)
                 {
-                    if (x > 0)
-                    {
-                        if (Field[y, x - 1] == Players[0].Symbole)
-                        {
-                            Field[y, x] = Players[1].Symbole;
-                        }
-                        else if (Field[y, x - 1] == Players[1].Symbole) // Being Specific For Easy Bug Detection
-                        {
-                            Field[y, x] = Players[0].Symbole;
-                        }
-                    }
-                    else if (x == 0 && y > 0)
-                    {
-                        if (Field[y - 1, 2] == Players[0].Symbole)
-                        {
-                            Field[y, x] = Players[1].Symbole;
-                        }
-                        else if (Field[y - 1, 2] == Players[1].Symbole)
-                        {
-                            Field[y, x] = Players[0].Symbole;
-                        }
-                    }
+                    Field[y, x] = ' ';
                 }
             }
         }
@@ -90,7 +160,7 @@ namespace TicTacToe
         {
             for (int y = 0; y < Field.GetLength(0); y++)
             {
-                Console.Write('|');
+                Console.Write("{0,27}", '|');
                 for (int x = 0; x < Field.GetLength(1); x++)
                 {
                     if (Field[y, x] == Players[0].Symbole)
@@ -109,6 +179,146 @@ namespace TicTacToe
                 }
                 Console.WriteLine();
             }
+        }
+        static void GetWinner(int winner)
+        {
+            Console.Clear();
+            Console.WriteLine(Banner.Result);
+
+            GetField();
+            Console.WriteLine(Environment.NewLine);
+
+            if (winner == 3)
+            {
+                Console.WriteLine("Looks Like We Have A TIE");
+            }
+            else
+            {
+                Console.WriteLine($"Player {winner}, Also Known As {{{Players[winner - 1].Name}}} Won This Match");
+            }
+            Settings.Default.GamesPlayed++;
+            Settings.Default.Save();
+            Thread.Sleep(3600);
+        }
+        static bool CheckTie()
+        {
+            for (int y = 0; y < Field.GetLength(0); y++)
+            {
+                for (int x = 0; x < Field.GetLength(1); x++)
+                {
+                    if (Field[y, x] == ' ')
+                    {
+                        return false; // If There Is One Space Free NO TIE
+                    }
+                }
+            }
+            return true; // TIE
+        }
+        static bool CheckWinner()
+        {
+            if (HorizontalCheck())
+            {
+                return true;
+            }
+            if (VerticalCheck())
+            {
+                return true;
+            }
+            if (DiagonalCheck())
+            {
+                return true;
+            }
+            return false; // If We Haven't Returned Outta Here It Can't Be Real ❗😭🤓 Can It ❔
+
+        }
+        static bool HorizontalCheck()
+        {
+            if ((Field[0, 0] == Field[0, 1] && Field[0, 1] == Field[0, 2])
+                && (Field[0, 0] != ' ' && Field[0, 1] != ' ' && Field[0, 2] != ' '))
+            {
+                return true;
+            }
+            else if ((Field[1, 0] == Field[1, 1] && Field[1, 1] == Field[1, 2])
+                && (Field[1, 0] != ' ' && Field[1, 1] != ' ' && Field[1, 2] != ' '))
+            {
+                return true;
+            }
+            else if ((Field[2, 0] == Field[2, 1] && Field[2, 1] == Field[2, 2])
+                && (Field[2, 0] != ' ' && Field[2, 1] != ' ' && Field[2, 2] != ' '))
+            {
+                return true;
+            }
+            else
+            {
+                return false;
+            }
+        }
+        static bool VerticalCheck()
+        {
+            if ((Field[0, 0] == Field[1, 0] && Field[1, 0] == Field[2, 0])
+                && (Field[0, 0] != ' ' && Field[1, 0] != ' ' && Field[2, 0] != ' '))
+            {
+                return true;
+            }
+            else if ((Field[0, 1] == Field[1, 1] && Field[1, 1] == Field[2, 1])
+                && (Field[0, 1] != ' ' && Field[1, 1] != ' ' && Field[2, 1] != ' '))
+            {
+                return true;
+            }
+            else if ((Field[0, 2] == Field[1, 2] && Field[1, 2] == Field[2, 2])
+                && (Field[0, 2] != ' ' && Field[1, 2] != ' ' && Field[2, 2] != ' '))
+            {
+                return true;
+            }
+            else
+            {
+                return false;
+            }
+        }
+        static bool DiagonalCheck()
+        {
+            if ((Field[0, 0] == Field[1, 1] && Field[1, 1] == Field[2, 2])
+                && (Field[0, 0] != ' ' && Field[1, 1] != ' ' && Field[2, 2] != ' '))
+            {
+                return true;
+            }
+            else if ((Field[0, 2] == Field[1, 1] && Field[1, 1] == Field[2, 0])
+                && (Field[0, 2] != ' ' && Field[1, 1] != ' ' && Field[2, 0] != ' '))
+            {
+                return true;
+            }
+            else
+            {
+                return false;
+            }
+        }
+        static int Input()
+        {
+            ConsoleKeyInfo key;
+            bool success = false;
+
+            do
+            {
+                key = Console.ReadKey(true);
+
+                foreach (char option in Pos)
+                {
+                    if (option == key.KeyChar)
+                    {
+                        success = true;
+                        break;
+                    }
+                }
+            } while (!success);
+
+            return Convert.ToInt32(char.GetNumericValue(key.KeyChar));
+        }
+        static void ClearLine()
+        {
+            int currentLineCursor = Console.CursorTop;
+            Console.SetCursorPosition(0, Console.CursorTop);
+            Console.Write(new string(' ', Console.WindowWidth));
+            Console.SetCursorPosition(0, currentLineCursor);
         }
         #endregion
     }
